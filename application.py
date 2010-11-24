@@ -1,8 +1,11 @@
 #encoding=utf-8
 from config import Config
 from testcase import TestCase
+from logger import log
 import os
 import threading
+import time
+import sys
 
 class Monitor:
 
@@ -24,31 +27,45 @@ class Monitor:
 		testcase.fromxml(xml)
 		self.testcases[testcase.name] = testcase
 	  except:
-		print 'invalid testcase definition in file : %s, will be discard.'%testfile
+		log.error('invalid testcase definition in file : %s, will be discard.'%testfile)
 
-	print 'load test file done! there are %d valid testcases.'%len(self.testcases.keys())
+	log.info('load test file done! there are %d valid testcases.'%len(self.testcases.keys()))
 
   def get_test_files(self):
 	testdir = self.config.testdir
 	if not os.path.exists(testdir):
-	  testdir = os.path.sep.join(__file__,testdir)
-	  if not os.path.exists(testdir)
-		raise Error,'testdir %s not found!'%self.config.testdir
+	  testdir = os.path.sep.join((__file__,testdir))
+	  if not os.path.exists(testdir):
+		msg = 'testdir %s not found!'%self.config.testdir
+		log.error(msg)
+		raise Exception,msg
 
 	for file in os.listdir(testdir):
 	  if file.endswith('test.xml'):
-		yield os.path.sep.join(testdir,file)
+		yield os.path.sep.join((testdir,file))
 
   def handle_result(self,result):
-	print 'handling test result'
+	log.debug('handling test result')
 
   def run(self):
-	for testcase in self.testcases:
+	log.debug('about to run all test!')
+	for name,testcase in self.testcases.items():
 	  try:
-		thread = threading.Thread(target=testcase,name=testcase.name,kwargs={'config':self.config,'callback':self.handle_result})
+		thread = threading.Thread(target=testcase,name=name,kwargs={'config':self.config,'callback':self.handle_result})
 		thread.start()
-	  except:
-		print 'testcase %s start fail.'%testcase.name
+	  except Exception,e:
+		log.error('testcase %s start fail.'%name)
+		excinfo = sys.exc_info()
+		log.error(excinfo[0])
+		log.error(excinfo[1])
+
+	log.info( 'ok,it is your show time now,i gotta sleep')
+
+	while threading.activeCount() > 1:
+	  log.info( 'still %d people doing their job? just go on!'%threading.activeCount())
+	  time.sleep(60)
+
+	log.info('so,guys,have all your jobs don? now quit!')
 
 
 if __name__ == '__main__':

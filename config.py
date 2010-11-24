@@ -12,7 +12,7 @@ class MonitorConfig:
 	# set default config
 	self.debug = 0
 
-	self.testdir = '/testcases'
+	self.testdir = 'testcases'
 
 	self.http_timeout = 30
 

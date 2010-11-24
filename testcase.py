@@ -1,4 +1,5 @@
 #encoding=utf-8
+from logger import log
 import time
 
 """
@@ -10,30 +11,30 @@ class TestCase:
 	# 设置默认参数
 	self.name = name # 测试用例的名称
 	self.loop = 1 # 反复执行测试次数，-1为无限循环
-	self.frequency = 60 # 延迟60秒执行一次
-	self.delay = 10 # 第一次执行的延迟时间
+	self.frequency = 10 # 延迟60秒执行一次
+	self.delay = 1 # 第一次执行的延迟时间
 
 	self._test_count = 0
 
   def fromxml(self,xml):
-	print 'in fromxml'
+	log.debug('in fromxml')
 
   """
   每次测试前，需要做一些准备工作？
   """
   def setup(self):
-	print 'in test steup'
+	log.debug('in test steup')
 
   """
   每次测试完成后，清理现场
   """
   def teardown(self):
-	print 'in test teardown'
+	log.debug('in test teardown')
 
   def test(self):
 	self.setup()
 
-	print 'now testing'
+	log.debug('now testing')
 	#  your test logic
 
 	self.teardown()
@@ -42,8 +43,8 @@ class TestCase:
   应用全局配置的原则是：
   对于某些配置属性，当测试用例没有显式配置时，使用全局配置
   """
-  def apply_global_config(config):
-	pass
+  def apply_global_config(self,config):
+	log.debug('applying global config')
 
   """
   测试进程会调用此方法
@@ -57,6 +58,9 @@ class TestCase:
 
 	time.sleep(self.delay)
 	while self.loop == -1 or self.loop > 0:
+
+	  log.debug('there are %d loop(s) left'%self.loop)
+
 	  result = self.test()
 	  if callback:
 		callback(result)
