@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test name="logintest" timeout="30" loop="-1" frequency="20">
+	<sample 
+	  id="login"
+	  type="HTTP"
+	  url="http://www.botwave.com/login"
+	  timeout="30"
+	  method="POST"
+	  >
+	  <parameters>
+	  	<parameter name="name" value="jeff"/>
+	  	<parameter name="password" value="password"/>
+	  </parameters>
+	</sample>
+	
+	<assert type="eq">
+		<item>${httpcode}</item>
+		<item>200</item>
+	</assert>
+</test>
