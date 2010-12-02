@@ -7,14 +7,33 @@
 	  timeout="30"
 	  method="POST"
 	  >
-	  <parameters>
-	  	<parameter name="name" value="jeff"/>
-	  	<parameter name="password" value="password"/>
-	  </parameters>
+	  <data format="xml">
+	  	<item name="name" value="jeff"/>
+	  	<item name="password">password</item>
+	  </data>
+	  
 	</sample>
 	
 	<assert type="eq">
 		<item>${httpcode}</item>
 		<item>200</item>
 	</assert>
+	
+	<sample
+	  id="valid"
+	  type="SOAP"
+	  wsdl="http://www.ooxx.com/ooxx?wsdl"
+	  method="checkSSOLogin"
+	  timeout="30"
+	  >
+	  <data format="json">
+	  	<![CDATA[
+	  	{"name":"jeff"}
+	  	]]>
+	  </data>
+	 </sample>
+	 
+	 <assert type="eq">
+	 	<item></item>
+	 </assert>
 </test>

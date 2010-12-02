@@ -7,7 +7,22 @@ from utils import get_child_tags
 from assertser import get_assertser
 from sampler import get_sampler
 
-test_components = {}
+register_node = {}
+
+def register(name,node_cls):
+  if TestNode not in node_cls.__bases__:
+	raise Exception,'node_cls must be a TestNode subclass'
+  register_node[name] = node_cls
+
+def unregister(name):
+  del resigter_node[name]
+
+def get_registed_node(name):
+  return register_node.get(name,None)
+
+
+class AssertionError(Exception):
+  pass
 
 """
 测试结果
@@ -18,20 +33,23 @@ class TestResult:
 
 class TestNode(object):
 
-  def __init__(self,*args,**kwargs):
-	self.parent = None # 父节点
-	self.children = [] # 子节点
-	self.context = {} # 该节点的上下文
+  def __init__(self,name=None,parent=None,*args,**kwargs):
+	self._name = name
+	self._parent = parent # 父节点
+	self._children = [] # 子节点
+	self._child_tags = set([])
+	self._context = {} # 该节点的上下文
 
-	d = self.__dict__
-	for k,v in kwargs.items():
-	  d[k] = v
+	self.__dict__.update(kwargs)
 
-  def is_valid(self):
-	return False
+  def __str__(self):
+	return '%s -- a %s instance'%(self._name,self.__class__.__name__)
 
   def fromxml(self,xml):
-	log.debug('setting attributes from xml')
+	log.debug('=================== starting parse xml, tag:%s ================'%self._name)
+
+	if not self._name:
+	  self._name = xml.tagName
 
 	for k,v in xml.attributes.items():
 	  self._append_attr(k,v)
@@ -39,38 +57,99 @@ class TestNode(object):
 	log.debug('parase child nodes')
 	self.parse_child_tags(xml)
 
-  def parse_child_tags(self,xml):
+	if not self._children:
+	  # if there are not child tags,try to get text
+	  self.parse_child_text(xml)
 
-	for child_node in get_child_tags(xml):
-	  if test_components.get(child_node.tagName,None):
-		comp = test_components.get(child_node.tagName)()
-		if getattr(comp,'fromxml',None):
-		  comp.fromxml(child_node)
-		  comp.parent = self
-		  self.children.append(comp)
-		elif getattr(self,'_parse_%s'%child_node.tagName,None):
-		  # 如果是可解释的元素，则亲自解释,如attr
-		  getattr(self,'_parse_%s'%child_node.tagName)(child_node)
+	if self._parent:
+	  self._parent._add_or_append_attr(self._name,self)
+
+	log.debug('================== finish xml parse, tag:%s ==================='%self._name)
+
+  def parse_child_text(self,xml):
+	"""
+	>>> cdata = '''<data type="json">
+	... <![CDATA[ {"name":"jeff","password":"password"}]]>
+	... </data>
+	... '''
+	>>> cdoc = minidom.parseString(cdata)
+	>>> node = TestNode()
+	>>> node.parse_child_text(cdoc.firstChild)
+	>>> node._text
+	u'{"name":"jeff","password":"password"}'
+	>>> tdata = '<data type="text">hello world</data>'
+	>>> tdoc = minidom.parseString(tdata)
+	>>> node = TestNode()
+	>>> node.parse_child_text(tdoc.firstChild)
+	>>> node._text
+	u'hello world'
+	"""
+	# 如果有CDATA则只读CDATA，否则读所有TEXT结点
+	log.debug('parse child text now')
+	for child_node in xml.childNodes:
+	  if child_node.nodeType == xml.CDATA_SECTION_NODE:
+		self._text = child_node._get_data().strip()
+	if not getattr(self,'_text',None):
+	  log.debug('no CDATA found,try Text tag')
+	  for child_node in xml.childNodes:
+		if child_node.nodeType == xml.TEXT_NODE:
+		  self._text = child_node.wholeText.strip()
+		  return
 		else:
-		  # 没有实现fromxml方法
-		  raise Exception,'function not implements:fromxml'
-	  else:
-		log.warn('unkown tag %s'%child_node.tagName)
+		  log.debug('not text found too')
 
-  def _parse_attr(self,xml):
+  def parse_child_tags(self,xml):
+	"""
+	"""
+	for child_node in get_child_tags(xml):
+
+	  # 1.把未定义的标签转换成TestNode，当作当前结点的属性
+	  if get_registed_node(child_node.tagName):
+		comp = get_registed_node(child_node.tagName)(name=child_node.tagName,parent=self)
+	  else:
+		comp = TestNode(name=child_node.tagName,parent=self)
+
+	  # 这里可以把不需特别处理的Tag处理成当前节点的属性
+	  comp.fromxml(child_node)
+	  self._children.append(comp) # 所有Child放在一个List
+	  self._child_tags.add(child_node.tagName)
+	  #self._add_or_append_attr(child_node.tagName,comp) # 标签名相同的Child放在一个List
+
+	  # 2.看是否有相应的_parse方法提供，有则调用,作特别处理
+	  if getattr(self,'_parse_%s'%child_node.tagName,None):
+		# 如果是可解释的元素，则亲自解释,如attr
+		getattr(self,'_parse_%s'%child_node.tagName)(child_node,comp)
+
+
+  def _add_or_append_attr(self,name,value):
+	"""
+	增加或追加属性
+	"""
+	log.debug('add or append %s'%name)
+	obj = getattr(self,name,None)
+	if obj:
+	  if type(obj) in (list,tuple):
+		obj += (value,)
+	  else:
+		obj = (obj,value)
+	else:
+	  obj = value
+	setattr(self,name,obj)
+
+  def _parse_attr(self,xml,parent=None):
 	log.debug('parse attribute')
 	attrs = xml.attributes
 	if attrs.has_key('name') and attrs.has_key('value'):
 	  name = attrs['name']
 	  value = attrs['value']
-	  self.context[name] = value
+	  parent._context[name] = value
 	else:
 	  log.warn('invalid attribute tag')
 
-  def _parse_attribute(self,xml):
+  def _parse_attribute(self,xml,parent=None):
 	self._parse_attr(xml)
 
-  def _parse_parameter(self,xml):
+  def _parse_parameter(self,xml,parent=None):
 	self._parse_attr(xml)
 
 
@@ -78,14 +157,14 @@ class TestNode(object):
 	# 如果是一些已知的属性，可能需要做类型转换。未知的就是字符值。
 	log.debug('setting attrbite %s=%s'%(name,value))
 	d = self.__dict__
-	if d.has_key(name):
+	if d.has_key(name) and d[name] is not None:
 	  log.debug('testcase attribute exists')
 	  try:
 		d[name] = type(d[name])(value)
 	  except:
 		pass
 	else:
-	  log.debug('testcase do not have a attribute %s'%name)
+	  log.debug('testcase do not have a attribute %s or the attribute is None'%name)
 	  d[name] = value
 
 
@@ -94,23 +173,16 @@ class TestNode(object):
 """
 class TestCase(TestNode):
 
-  def __init__(self,name=None,*args,**kwargs):
+  def __init__(self,testname=None,*args,**kwargs):
 	# 设置默认参数
-	self.name = name # 测试用例的名称
+	self.name = testname # 测试用例的名称
 	self.loop = 1 # 反复执行测试次数，-1为无限循环
 	self.frequency = 10 # 延迟60秒执行一次
 	self.delay = 1 # 第一次执行的延迟时间
 
 	self._test_count = 0
 
-	# 每次测试需要使用的私有属性
-	self._context = {} #测试上下文
-
-	super(TestCase,self).__init__(*args,**kwargs)
-
-  def is_valid(self):
-	if self.children:
-	  return True
+	super(TestCase,self).__init__(name='test',*args,**kwargs)
 
   """
   每次测试前，需要做一些准备工作？
@@ -179,46 +251,91 @@ class TestCase(TestNode):
 一次远程采样
 """
 class Sample(TestNode):
-  def __init__(self,type="HTTP",*args,**kwargs):
+  def __init__(self,type=None,*args,**kwargs):
 	self.type = type
-	# TODO 新建的方式，也需要Mixin相应的采样器，考虑一下如何与parse_child_tags的结合起来
+	if self.type:
+	  self.apply_sampler()
 
 	super(Sample,self).__init__(*args,**kwargs)
 
-  def parse_child_tags(self,xml):
+  def apply_sampler(self):
 	# 如果有相应的采样器，则把采样器的能力复制过来,这样，具体需要怎么解释就让采样器自己来搞定吧
 	sampler_cls = get_sampler(self.type.lower())
-	if sampler_cls:
+	if sampler_cls and sampler_cls not in self.__class__.__bases__:
 	  self.__class__.__bases__ += (sampler_cls,)
 
+  def parse_child_tags(self,xml):
+	self.apply_sampler()
+
 	super(Sample,self).parse_child_tags(xml)
+
+  def _parse_data(self,xml,data):
+	"""
+	>>> sample = Sample()
+	>>> xml = '''<data type="xml"><item name="name" value="jeff"/><item name="password">password</item><item>hello</item><item>world</item></data>'''
+	>>> doc = minidom.parseString(xml)
+	>>> data = TestNode('data',sample)
+	>>> data.fromxml(doc.firstChild)
+	>>> sample._parse_data(doc.firstChild,data)
+	>>> sample.data.kwargs == {u'name':u'jeff',u'password':u'password'}
+	True
+	>>> sample.data.args == [u'hello',u'world']
+	True
+	"""
+	data.args = []
+	data.kwargs = {}
+
+	data_type = getattr(data,'type','xml')
+	if data_type == 'xml' and getattr(data,'item',None):
+	  if type(data.item) not in (list,tuple):
+		items = (data.item,)
+	  else:
+		items = data.item
+	  log.debug('there are %d items for data'%len(items))
+
+	  for item in items:
+		value = getattr(item,'value',None) or item._text
+		if getattr(item,'name',None):
+		  data.kwargs[item.name] = value
+		else:
+		  data.args += (value,)
+
+	elif data_type == 'json':
+	  import simplejson as json
+	  rs = json.loads(data._text)
+	  if type(rs) == dict:
+		data.kwargs.update(rs)
+	  elif type(rs) in (list,tuple):
+		data.args = rs
+	  else:
+		pass
+
 
   """
   run the sampler
   """
   def __call__(self):
-	pass
-
-
+	self.sample()
 
 """
 一次断言
 """
 class Assert(TestNode):
-  def __init__(self,*args,**kwargs):
-
-	super(Assert,self).__init__(*args,**kwargs)
-
-  def fromxml(self,xml):
-	pass
 
   """
   do assertion
   """
   def __call__(self):
-	pass
+	# 检测assert的类型，调用不同的assertser的方法就可以。
+	assertser = get_assertser(self.type)
+	args = [item._text for item in self.item]
+	assertser(*args)
 
-test_components['test'] = TestCase
-test_components['sample'] = Sample
-test_components['assert'] = Assert
+# 注册配置结点类
+register('sample',Sample)
+register('assert',Assert)
+
+if __name__ == '__main__':
+  import doctest
+  doctest.testmod(verbose=True)
 
