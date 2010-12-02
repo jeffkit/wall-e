@@ -24,6 +24,19 @@ def get_registed_node(name):
 class AssertionError(Exception):
   pass
 
+def wrap(value):
+  class Wrapper(value.__class__):
+	def __init__(self,v,*arg,**kwargs):
+	  self._data = [v]
+	  super(Wrapper,self).__init__(*arg,**kwargs)
+	  if getattr(v,'__dict__',None):
+		self.__dict__.update(v.__dict__)
+	def __iter__(self):
+	  return self._data.__iter__()
+	def next(self):
+	  return obj._data.next()
+  return Wrapper(value)
+
 """
 测试结果
 """
@@ -44,6 +57,22 @@ class TestNode(object):
 
   def __str__(self):
 	return '%s -- a %s instance'%(self._name,self.__class__.__name__)
+
+  def __getattr__(self,name):
+	log.debug('####### WOO, why you are here? in __getattr__ ###### %s'%name)
+	d = self.__dict__
+	if name.endswith("_as_list") and d.has_key(name[0:name.index("_as_list")]):
+	  target = d[name[0:name.index('_as_list')]]
+	  if type(target) in (list,tuple):
+		return target
+	  else:
+		return (target,)
+
+	try:
+	  return d[name]
+	except KeyError:
+	  raise AttributeError(name)
+
 
   def fromxml(self,xml):
 	log.debug('=================== starting parse xml, tag:%s ================'%self._name)
@@ -94,6 +123,7 @@ class TestNode(object):
 	  for child_node in xml.childNodes:
 		if child_node.nodeType == xml.TEXT_NODE:
 		  self._text = child_node.wholeText.strip()
+		  log.debug('my _text is :%s'%self._text)
 		  return
 		else:
 		  log.debug('not text found too')
@@ -118,7 +148,7 @@ class TestNode(object):
 	  # 2.看是否有相应的_parse方法提供，有则调用,作特别处理
 	  if getattr(self,'_parse_%s'%child_node.tagName,None):
 		# 如果是可解释的元素，则亲自解释,如attr
-		getattr(self,'_parse_%s'%child_node.tagName)(child_node,comp)
+		getattr(self,'_parse_%s'%child_node.tagName)(child_node)
 
 
   def _add_or_append_attr(self,name,value):
@@ -131,12 +161,12 @@ class TestNode(object):
 	  if type(obj) in (list,tuple):
 		obj += (value,)
 	  else:
-		obj = (obj,value)
+		obj = (obj._data[0],value)
 	else:
-	  obj = value
+	  obj = wrap(value)
 	setattr(self,name,obj)
 
-  def _parse_attr(self,xml,parent=None):
+  def _parse_attr(self,xml):
 	log.debug('parse attribute')
 	attrs = xml.attributes
 	if attrs.has_key('name') and attrs.has_key('value'):
@@ -146,7 +176,7 @@ class TestNode(object):
 	else:
 	  log.warn('invalid attribute tag')
 
-  def _parse_attribute(self,xml,parent=None):
+  def _parse_attribute(self,xml):
 	self._parse_attr(xml)
 
   def _parse_parameter(self,xml,parent=None):
@@ -167,7 +197,6 @@ class TestNode(object):
 	  log.debug('testcase do not have a attribute %s or the attribute is None'%name)
 	  d[name] = value
 
-
 """
 一个测试用例
 """
@@ -179,10 +208,12 @@ class TestCase(TestNode):
 	self.loop = 1 # 反复执行测试次数，-1为无限循环
 	self.frequency = 10 # 延迟60秒执行一次
 	self.delay = 1 # 第一次执行的延迟时间
+	self.cookies_enable = True
 
 	self._test_count = 0
 
 	super(TestCase,self).__init__(name='test',*args,**kwargs)
+
 
   """
   每次测试前，需要做一些准备工作？
@@ -269,44 +300,38 @@ class Sample(TestNode):
 
 	super(Sample,self).parse_child_tags(xml)
 
-  def _parse_data(self,xml,data):
+  def _parse_data(self,xml):
 	"""
 	>>> sample = Sample()
 	>>> xml = '''<data type="xml"><item name="name" value="jeff"/><item name="password">password</item><item>hello</item><item>world</item></data>'''
 	>>> doc = minidom.parseString(xml)
 	>>> data = TestNode('data',sample)
 	>>> data.fromxml(doc.firstChild)
-	>>> sample._parse_data(doc.firstChild,data)
+	>>> sample._parse_data(doc.firstChild)
 	>>> sample.data.kwargs == {u'name':u'jeff',u'password':u'password'}
 	True
 	>>> sample.data.args == [u'hello',u'world']
 	True
 	"""
-	data.args = []
-	data.kwargs = {}
+	self.data.args = []
+	self.data.kwargs = {}
 
-	data_type = getattr(data,'type','xml')
-	if data_type == 'xml' and getattr(data,'item',None):
-	  if type(data.item) not in (list,tuple):
-		items = (data.item,)
-	  else:
-		items = data.item
-	  log.debug('there are %d items for data'%len(items))
-
-	  for item in items:
+	data_type = getattr(self.data,'type','xml')
+	if data_type == 'xml' and getattr(self.data,'item',None):
+	  for item in self.data.item:
 		value = getattr(item,'value',None) or item._text
 		if getattr(item,'name',None):
-		  data.kwargs[item.name] = value
+		  self.data.kwargs[item.name] = value
 		else:
-		  data.args += (value,)
+		  self.data.args += (value,)
 
 	elif data_type == 'json':
 	  import simplejson as json
 	  rs = json.loads(data._text)
 	  if type(rs) == dict:
-		data.kwargs.update(rs)
+		self.data.kwargs.update(rs)
 	  elif type(rs) in (list,tuple):
-		data.args = rs
+		self.data.args = rs
 	  else:
 		pass
 

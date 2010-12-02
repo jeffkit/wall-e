@@ -1,4 +1,8 @@
 #encoding=utf-8
+import urllib
+import urllib2
+import socket
+from SOAPpy import WSDL
 
 sampler_map = {}
 
@@ -21,7 +25,39 @@ class HTTPSampler(object):
 
   # 采样的逻辑
   def sample(self):
-	pass
+
+	if self.timeout:
+	  socket.setdefaulttimeout(self.timeout)
+
+	# 开始采样了，开cookies，发送请求，获得响应结果，响应头。
+	handlers = []
+
+	# 如果允许Cookies，使用Cookies处理器
+	if self._parent.cookies_enable:
+	  handlers.append(urllib2.HTTPCookieProcessor())
+
+	opener = urllib2.build_opener(*handlers)
+
+	# 如果显式设置请求头
+	if getattr(self,'headers',None):
+	  opener.addheaders = [(item.name,getattr(item,'value',None) or item._text) for item in self.headers.item_as_list]
+
+	# 整理URL及参数
+	url = self.url
+	data = urllib.urlencode(self.data.kwargs) or None
+	if self.method.lower() == 'get':
+		url = '?'.join((url,data))
+	try:
+	  response = opener.open(url,data)
+	except:
+	  pass
+	  # 在这里处理异常
+
+	# 采样的结果需要暴露4样东西：code，msg，responseText,responseHeaders
+	self._context['code'] = response.code
+	self._context['msg'] = response.msg
+	self._context['responseText'] = response.read()
+	self._context['responseHeaders'] = response.info()
 
 register('http',HTTPSampler)
 
@@ -30,8 +66,23 @@ class SOAPSampler(object):
   def is_valid(self):
 	pass
 
+  def translate_arg(self,kw):
+	# 把字典转译成SOAPpy能懂的类型
+	pass
+
   # 采样的逻辑
   def sample(self):
-	pass
+	server = WSDL.Proxy(self.wsdl)
+	namespace = server.wsdl.targetNamespace
+	server.methods[self.method].namespace = namespace
+	method = getattr(server,self.method)
+	if self.data.kwargs:
+	  kwargs = self.translate_arg(self.data.kwargs)
+	  result = method(**kwargs)
+	else:
+	  result = method()
+
+
+
 
 register('soap',SOAPSampler)
