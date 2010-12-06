@@ -209,6 +209,7 @@ class TestCase(TestNode):
 	self.frequency = 10 # 延迟60秒执行一次
 	self.delay = 1 # 第一次执行的延迟时间
 	self.cookies_enable = True
+	self.timeout = 30
 
 	self._test_count = 0
 
@@ -286,6 +287,7 @@ class Sample(TestNode):
 	self.type = type
 	if self.type:
 	  self.apply_sampler()
+	self.timeout = 30
 
 	super(Sample,self).__init__(*args,**kwargs)
 

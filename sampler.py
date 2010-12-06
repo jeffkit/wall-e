@@ -3,6 +3,7 @@ import urllib
 import urllib2
 import socket
 from SOAPpy import WSDL
+from logger import log,log_exce
 
 sampler_map = {}
 
@@ -25,6 +26,20 @@ class HTTPSampler(object):
 
   # 采样的逻辑
   def sample(self):
+	"""
+	HTTP 采样的逻辑
+	>>> from testcase import Sample,TestCase
+	>>> test = TestCase()
+	>>> sample = Sample(parent=test,type='http',url='http://www.botwave.com',method='GET')
+	>>> sample.url
+	'http://www.botwave.com'
+	>>> sample()
+	>>> len(sample._context.items())
+	5
+	>>> sample._context['code']
+	200
+
+	"""
 
 	if self.timeout:
 	  socket.setdefaulttimeout(self.timeout)
@@ -44,20 +59,30 @@ class HTTPSampler(object):
 
 	# 整理URL及参数
 	url = self.url
-	data = urllib.urlencode(self.data.kwargs) or None
+	log.debug('the url is %s'%url)
+	data = getattr(self,'data','')
+	if data:
+	  data = urllib.urlencode(data.kwargs)
+
 	if self.method.lower() == 'get':
+	  if data:
 		url = '?'.join((url,data))
 	try:
-	  response = opener.open(url,data)
+	  log.debug('finnally , getting the url %s'%url)
+	  if data:
+		response = opener.open(url,data)
+	  else:
+		response = opener.open(url)
+	  # 采样的结果需要暴露4样东西：code，msg，responseText,responseHeaders
+	  self._context['url'] = response.geturl()
+	  self._context['code'] = response.code
+	  self._context['msg'] = response.msg
+	  self._context['responseText'] = response.read()
+	  self._context['responseHeaders'] = response.info()
 	except:
-	  pass
+	  log_exce('something wrong')
 	  # 在这里处理异常
 
-	# 采样的结果需要暴露4样东西：code，msg，responseText,responseHeaders
-	self._context['code'] = response.code
-	self._context['msg'] = response.msg
-	self._context['responseText'] = response.read()
-	self._context['responseHeaders'] = response.info()
 
 register('http',HTTPSampler)
 
@@ -86,3 +111,8 @@ class SOAPSampler(object):
 
 
 register('soap',SOAPSampler)
+
+if __name__ == '__main__':
+  import doctest
+  doctest.testmod(verbose=True)
+
