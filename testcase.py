@@ -364,5 +364,7 @@ register('assert',Assert)
 
 if __name__ == '__main__':
     import doctest
+    log.debug('hello')
     doctest.testmod(verbose=True)
+
 

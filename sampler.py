@@ -32,6 +32,14 @@ class HTTPSampler(object):
         >>> test = TestCase()
         >>> sample = Sample(parent=test,type='http',url='http://www.botwave.com',method='GET')
         >>> headers = TestNode(name='headers',parent=sample)
+        >>> item = TestNode(name='item',parent=headers)
+        >>> item.name = 'User-Agent'
+        >>> item.value = 'User-Agent: Mozilla/5.0 (Linux; X11)'
+        >>> headers._add_or_append_attr('item',item)
+        >>> sample.headers = headers
+        >>> data = TestNode(name='data',parent=sample)
+        >>> data.kwargs = {'name':'jeff','password':'hello'}
+        >>> sample.data = data
         >>> sample.url
         'http://www.botwave.com'
         >>> sample()
