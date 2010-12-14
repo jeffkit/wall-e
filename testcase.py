@@ -6,6 +6,7 @@ from xml.dom import minidom
 from utils import get_child_tags
 from assertser import get_assertser
 from sampler import get_sampler
+from datetime import datetime
 
 register_node = {}
 
@@ -20,8 +21,7 @@ def unregister(name):
 def get_registed_node(name):
     return register_node.get(name,None)
 
-
-class AssertionError(Exception):
+class TestAssertionError(Exception):
     pass
 
 def wrap(value):
@@ -41,8 +41,14 @@ def wrap(value):
 测试结果
 """
 class TestResult:
-    def __init__(self):
-	pass
+    def __init__(self,type='test'):
+        self.type = type
+        self.status = 'SUCCESS' # or FAIL,ERROR
+        self.sections = [] #测试的每一步详情,每个元素都是TestResult
+
+    def toxml(self):
+        # 输出XML格式的结果
+        pass
 
 class TestNode(object):
 
@@ -236,14 +242,30 @@ class TestCase(TestNode):
         self.setup()
 
         log.debug('now testing')
-        #TODO !important your test logic
+
+        result = TestResult()
+        result.start_time = datetime.now()
 
         for child in self.children:
             try:
-                child()
+                rs = child()
+                if rs.status == 'ERROR':
+                    # 测试组件自检出错
+                    result.status = rs.status
+                    result.exc_info = rs.exc_info
+                    break
+            except TestAssertionError:
+                # get AssertionError,说明测试失败,只能让asserter 抛出
+                result.status = 'FAIL'
+                result.bad_assertion = child
+                break
             except:
-                # 此处要判断是否AssertionError，如果不是则是测试过程出错，而非断言错误
-                pass
+                # 而非断言错误,测试组件没能自检出来
+                import sys
+                result.status = 'ERROR'
+                result.exc_info = sys.exc_info()
+                break
+        result.end_time = datetime.now()
 
         self.teardown()
 

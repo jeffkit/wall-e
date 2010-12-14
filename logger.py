@@ -39,6 +39,8 @@ log = create_log()
 def log_exce(msg=None):
     if msg:
         log.error(msg)
-        excinfo = sys.exc_info()
-        log.error(excinfo[0])
-        log.error(excinfo[1])
+    excinfo = sys.exc_info()
+    log.error(excinfo[0])
+    log.error(excinfo[1])
+    return excinfo
+

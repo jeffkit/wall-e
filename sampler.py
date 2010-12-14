@@ -4,6 +4,7 @@ import urllib2
 import socket
 from SOAPpy import WSDL
 from logger import log,log_exce
+from datetime import datetime
 
 sampler_map = {}
 
@@ -39,7 +40,7 @@ class HTTPSampler(object):
         >>> sample.headers = headers
         >>> data = TestNode(name='data',parent=sample)
         >>> data.kwargs = {'name':'jeff','password':'hello'}
-        >>> sample.data = data
+        >>> #sample.data = data
         >>> sample.url
         'http://www.botwave.com'
         >>> sample()
@@ -48,6 +49,9 @@ class HTTPSampler(object):
         >>> sample._context['code']
         200
         """
+        from testcase import TestResult
+
+        result = TestResult(self._name)
         if self.timeout:
             socket.setdefaulttimeout(self.timeout)
 
@@ -76,20 +80,24 @@ class HTTPSampler(object):
                 url = '?'.join((url,data))
         try:
             log.debug('finnally , getting the url %s'%url)
+
+            result.start_time = datetime.now()
             if data:
                 response = opener.open(url,data)
             else:
                 response = opener.open(url)
-            # 采样的结果需要暴露5样东西：url,code，msg，responseText,responseHeaders
-            self._context['url'] = response.geturl()
-            self._context['code'] = response.code
-            self._context['msg'] = response.msg
-            self._context['responseText'] = response.read()
-            self._context['responseHeaders'] = response.info()
-        except:
-            log_exce('something wrong')
-            # 在这里处理异常
+            result.end_time = datetime.now()
 
+            # 采样的结果需要暴露5样东西：url,code，msg，responseText,responseHeaders
+            result.url = self._context['url'] = response.geturl()
+            result.code = self._context['code'] = response.code
+            result.msg = self._context['msg'] = response.msg
+            result.responseText = self._context['responseText'] = response.read()
+            result.responseHeaders = self._context['responseHeaders'] = response.info()
+        except:
+            result.status = "ERROR"
+            result.exc_info = log_exce('something wrong')
+        return result
 
 register('http',HTTPSampler)
 
