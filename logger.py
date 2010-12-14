@@ -23,22 +23,22 @@ LOG_FORMAT = '[%(asctime)s] %(funcName)s(%(filename)s:%(lineno)s) [%(levelname)s
 # 日志格式设置结束
 
 def create_log():
-  logger = logging.getLogger()
-  formatter = logging.Formatter(LOG_FORMAT)
-  filehandler = logging.FileHandler(LOG_FILE)
-  filehandler.setFormatter(formatter)
-  streamhandler = logging.StreamHandler()
-  streamhandler.setFormatter(formatter)
-  logger.setLevel(LOG_LEVEL)
-  logger.addHandler(filehandler)
-  logger.addHandler(streamhandler)
-  return logger
+    logger = logging.getLogger()
+    formatter = logging.Formatter(LOG_FORMAT)
+    filehandler = logging.FileHandler(LOG_FILE)
+    filehandler.setFormatter(formatter)
+    streamhandler = logging.StreamHandler()
+    streamhandler.setFormatter(formatter)
+    logger.setLevel(LOG_LEVEL)
+    logger.addHandler(filehandler)
+    logger.addHandler(streamhandler)
+    return logger
 
 log = create_log()
 
 def log_exce(msg=None):
-  if msg:
-	log.error(msg)
-  excinfo = sys.exc_info()
-  log.error(excinfo[0])
-  log.error(excinfo[1])
+    if msg:
+        log.error(msg)
+        excinfo = sys.exc_info()
+        log.error(excinfo[0])
+        log.error(excinfo[1])
