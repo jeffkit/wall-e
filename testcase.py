@@ -4,7 +4,7 @@ import time
 import os
 from xml.dom import minidom
 from utils import get_child_tags
-from assertser import get_assertser
+from asserter import get_asserter
 from sampler import get_sampler
 from datetime import datetime
 
@@ -376,7 +376,7 @@ class Assert(TestNode):
     """
     def __call__(self):
         # 检测assert的类型，调用不同的assertser的方法就可以。
-        assertser = get_assertser(self.type)
+        assertser = get_asserter(self.type)
         args = [item._text for item in self.item]
         assertser(*args)
 
