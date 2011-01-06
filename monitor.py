@@ -7,6 +7,7 @@ import os
 import threading
 import time
 import sys
+import urllib,urllib2
 from xml.dom import minidom
 
 class Monitor:

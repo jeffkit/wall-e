@@ -65,7 +65,7 @@ class TestNode(object):
         return '%s -- a %s instance'%(self._name,self.__class__.__name__)
 
     def __getattr__(self,name):
-        log.debug('####### WOO, why you are here? in __getattr__ ###### %s'%name)
+        #log.debug('####### WOO, why you are here? in __getattr__ ###### %s'%name)
         d = self.__dict__
         if name.endswith("_as_list") and d.has_key(name[0:name.index("_as_list")]):
             target = d[name[0:name.index('_as_list')]]
@@ -235,6 +235,9 @@ class TestCase(TestNode):
         log.debug('in test teardown')
         self._context.clear()
 
+    def is_valid(self):
+        return True
+
     """
     单次测试
     """
@@ -246,7 +249,7 @@ class TestCase(TestNode):
         result = TestResult()
         result.start_time = datetime.now()
 
-        for child in self.children:
+        for child in self._children:
             try:
                 rs = child()
                 if rs.status == 'ERROR':

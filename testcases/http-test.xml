@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test name="http" timeout="30" loop="1" frequency="10">
+	<sample 
+	  id="jeffkit"
+	  type="HTTP"
+	  url="http://www.jeffkit.info"
+	  timeout="30"
+	  method="POST"
+      />
+	<assert type="eq">
+		<item>${httpcode}</item>
+		<item>200</item>
+	</assert>
+</test>

@@ -23,7 +23,7 @@ class HTTPSampler(object):
 
     # 在此判断所需要的信息是否完整
     def is_valid(self):
-        pass
+        return True
 
     # 采样的逻辑
     def sample(self):
@@ -49,10 +49,14 @@ class HTTPSampler(object):
         >>> sample._context['code']
         200
         """
+
         from testcase import TestResult
+
+        log.debug('starting http sample')
 
         result = TestResult(self._name)
         if self.timeout:
+            log.debug('setting request timeout')
             socket.setdefaulttimeout(self.timeout)
 
         # 开始采样了，开cookies，发送请求，获得响应结果，响应头。
@@ -60,17 +64,21 @@ class HTTPSampler(object):
 
         # 如果允许Cookies，使用Cookies处理器
         if self._parent.cookies_enable:
+            log.debug('enable cookies')
             handlers.append(urllib2.HTTPCookieProcessor())
 
+        log.debug('building url opener')
         opener = urllib2.build_opener(*handlers)
+
 
         # 如果显式设置请求头
         if getattr(self,'headers',None):
+            log.debug('setting headers')
             opener.addheaders = [(item.name,getattr(item,'value',None) or item._text) for item in self.headers.item]
 
         # 整理URL及参数
+        log.debug('the url is %s'%self.url)
         url = self.url
-        log.debug('the url is %s'%url)
         data = getattr(self,'data','')
         if data:
             data = urllib.urlencode(data.kwargs)
