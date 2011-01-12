@@ -1,5 +1,5 @@
 #encoding=utf-8
-from logger import log
+from logger import log,log_exce
 import time
 import os
 from xml.dom import minidom
@@ -249,24 +249,31 @@ class TestCase(TestNode):
         result = TestResult()
         result.start_time = datetime.now()
 
+        log.debug('there are %s children in this testcase'%len(self._children))
+
         for child in self._children:
+            log.debug('calling child %s'%child._name)
             try:
                 rs = child()
                 if rs.status == 'ERROR':
                     # 测试组件自检出错
                     result.status = rs.status
                     result.exc_info = rs.exc_info
+                    log.debug('Test Error')
                     break
             except TestAssertionError:
                 # get AssertionError,说明测试失败,只能让asserter 抛出
                 result.status = 'FAIL'
                 result.bad_assertion = child
+                log.debug('Test Fail')
                 break
             except:
                 # 而非断言错误,测试组件没能自检出来
                 import sys
                 result.status = 'ERROR'
                 result.exc_info = sys.exc_info()
+                log.debug('Test Error')
+                log_exce()
                 break
         result.end_time = datetime.now()
 
@@ -367,7 +374,7 @@ class Sample(TestNode):
     run the sampler
     """
     def __call__(self):
-        self.sample()
+        return self.sample()
 
 """
 一次断言
@@ -379,9 +386,12 @@ class Assert(TestNode):
     """
     def __call__(self):
         # 检测assert的类型，调用不同的assertser的方法就可以。
+        log.debug('asserting ...')
         assertser = get_asserter(self.type)
         args = [item._text for item in self.item]
         assertser(*args)
+        result = TestResult(self._name)
+        return result
 
 # 注册配置结点类
 register('sample',Sample)
