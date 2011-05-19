@@ -19,19 +19,28 @@ class Monitor:
         self.config = config
         if result_handler and getattr(result_handler,'handle',None):
             self.result_handler = result_handler
-
+        else:
+            from resultHandler import xmlHandler
+            self.result_handler = xmlHandler()
         testdir = self.config.testdir
         # scan test file
         self.testcases = {} # 管理测试用例
-
+        self.file2testcase = {}
         for testfile in self.get_test_files():
         # 构造测试并添加，视情况看是否需要启用新定时器
             testcase = TestCase()
+            if '\\' in testfile:
+                file_name = testfile[testfile.rfind('\\')+1:]
+            elif '/' in testfile:
+                file_name = testfile[testfile.rfind('/')+1:]
+            else:
+                file_name = testfile
             try:
                 xml = self.parsexml(testfile)
                 testcase.fromxml(xml)
                 if testcase.is_valid():
                     self.testcases[testcase.name] = testcase
+                    self.file2testcase[file_name] = testcase.name
                 else:
                     raise Exception,'no testcase found of empty testcase'
             except:
@@ -87,22 +96,15 @@ class Monitor:
             return test_node
         else:
             log.warn('no test node in the xml!')
-
+    #结果处理
     def handle_result(self,result):
-        log.debug('handling test result')
-        if getattr(self,'result_handler',None):
-            log.debug('delegate result to somebody')
-            try:
-                self.result_handler.handle(result)
-            except:
-                log.debug('fail to handle result by a custom handler,we will handle the result in default way.')
-                self.result2xml(result)
-        else:
-            log.debug('handle result in the default way,save as xml file')
-            self.result2xml(result)
-
-    def result2xml(self,result):
-        log.debug('save test result to xml')
+        try:
+            self.result_handler.handle(result)
+        except:
+            log.debug('fail to handle result by a custom handler,we will handle the result in default way.')
+            import traceback
+            for filename, lineno, function, msg in traceback.extract_tb(sys.exc_info()[2]):
+                log.debug('%s line %s in %s function [%s]'%(filename,lineno,function,msg))
 
     def run(self):
         log.debug('about to run all test!')
