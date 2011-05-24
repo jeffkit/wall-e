@@ -2,12 +2,15 @@
 from logger import log,log_exce
 import time
 import os
+import sys
 from xml.dom import minidom
 from utils import get_child_tags
-from asserter import get_asserter
+from asserter import get_asserter,TestAssertionError
 from sampler import get_sampler
 from datetime import datetime
-
+from resultformat import MutiFormat
+#from warning import warn2email
+#from warning import warn2db
 register_node = {}
 
 def register(name,node_cls):
@@ -21,8 +24,23 @@ def unregister(name):
 def get_registed_node(name):
     return register_node.get(name,None)
 
+#判断是否详细记录结果
+def islog(obj,arg=None):
+    if getattr(obj,'log',None):
+        log = getattr(obj,'log',None)
+        if log.upper() in ['y','YES','TRUE','T']:
+	        return True
+        elif log.upper() in ['N','NO','FALSE','F']:
+            return False
+    elif arg is not None: 
+        return arg
+    else:
+        return False
+
+'''
 class TestAssertionError(Exception):
     pass
+'''
 
 def wrap(value):
     class Wrapper(value.__class__):
@@ -40,15 +58,16 @@ def wrap(value):
 """
 测试结果
 """
-class TestResult:
+class TestResult(MutiFormat):
     def __init__(self,type='test'):
         self.type = type
         self.status = 'SUCCESS' # or FAIL,ERROR
         self.sections = [] #测试的每一步详情,每个元素都是TestResult
-
+    '''
     def toxml(self):
         # 输出XML格式的结果
         pass
+    '''
 
 class TestNode(object):
 
@@ -87,8 +106,10 @@ class TestNode(object):
             self._name = xml.tagName
 
         for k,v in xml.attributes.items():
+            print '--------------------[xml]-------------'
+            print k,' ',v
+            print '--------------------[xml]-------------'
             self._append_attr(k,v)
-
         log.debug('parase child nodes')
         self.parse_child_tags(xml)
 
@@ -247,26 +268,22 @@ class TestCase(TestNode):
         log.debug('now testing')
 
         result = TestResult()
+        result.testcase = self
         result.start_time = datetime.now()
-
+        result.log = islog(self)
         log.debug('there are %s children in this testcase'%len(self._children))
-
         for child in self._children:
             log.debug('calling child %s'%child._name)
             try:
                 rs = child()
-                if rs.status == 'ERROR':
+                self.setResult(child,result,rs)
+                if rs.status in ['ERROR','FAIL']:
+                    print '=============error======'
                     # 测试组件自检出错
                     result.status = rs.status
-                    result.exc_info = rs.exc_info
+                    #result.exc_info = rs.exc_info
                     log.debug('Test Error')
                     break
-            except TestAssertionError:
-                # get AssertionError,说明测试失败,只能让asserter 抛出
-                result.status = 'FAIL'
-                result.bad_assertion = child
-                log.debug('Test Fail')
-                break
             except:
                 # 而非断言错误,测试组件没能自检出来
                 import sys
@@ -276,8 +293,23 @@ class TestCase(TestNode):
                 log_exce()
                 break
         result.end_time = datetime.now()
-
         self.teardown()
+        #result.nodename = self.name
+        #result.testcase = self
+        return result
+
+    #设置callback中的result
+    def setResult(self,child,result,rs):
+	    if child._name in [u'sample','sample']:
+	        rs.nodetype = 'sample'
+	        rs._sample = child
+	        rs.log = islog(child,result.log)
+	        
+	    else:
+	        rs.nodetype = 'assert'
+	        rs._assert = child
+          
+	    result.sections.append(rs)
 
     """
     应用全局配置的原则是：
@@ -295,13 +327,18 @@ class TestCase(TestNode):
 
         if config:
             self.apply_global_config(config)
-
+        
         time.sleep(self.delay)
         while self.loop == -1 or self.loop > 0:
-
+            
             log.debug('there are %d loop(s) left'%self.loop)
-
+            
             result = self.test()
+            '''
+            if result.status in ['FAIL','ERROR']:
+                #warn2email.warning(result)
+                warn2db.warning(result)
+            '''
             if callback:
                 callback(result)
 
@@ -319,15 +356,17 @@ class Sample(TestNode):
         self.type = type
         if self.type:
             self.apply_sampler()
-        self.timeout = 30
-
         super(Sample,self).__init__(*args,**kwargs)
+        self.timeout = 30
+        
 
     def apply_sampler(self):
         # 如果有相应的采样器，则把采样器的能力复制过来,这样，具体需要怎么解释就让采样器自己来搞定吧
         sampler_cls = get_sampler(self.type.lower())
-        if sampler_cls and sampler_cls not in self.__class__.__bases__:
-            self.__class__.__bases__ += (sampler_cls,)
+        if sampler_cls and sampler_cls not in self.__class__.__bases__: 
+	        sampler = type(str(self.type.upper())+'Sampler',(Sample,),{})
+	        self.__class__ = sampler
+	        self.__class__.__bases__ += (sampler_cls,)
 
     def parse_child_tags(self,xml):
         self.apply_sampler()
@@ -374,7 +413,7 @@ class Sample(TestNode):
     run the sampler
     """
     def __call__(self):
-        return self.sample()
+	return self.sample()
 
 """
 一次断言
@@ -384,15 +423,76 @@ class Assert(TestNode):
     """
     do assertion
     """
+
     def __call__(self):
         # 检测assert的类型，调用不同的assertser的方法就可以。
         log.debug('asserting ...')
-        assertser = get_asserter(self.type)
-        args = [item._text for item in self.item]
-        assertser(*args)
         result = TestResult(self._name)
+        try:
+            assertser = get_asserter(self.type)
+            self.getData()
+            args = [item._text for item in self.item]
+            print 'pppppppppppppppppppppp'
+            print args
+            print 'pppppppppppppppppppppp'
+            assertser(*args)
+        except AssertionError:
+            result.status = 'FAIL'
+            #result.exc_info = sys.exc_info()
+            #result.exc_info[1].message = 'the len of the assert\'s item !=2'
+        except TestAssertionError:
+            # get AssertionError,说明测试失败,只能让asserter 抛出
+            result.status = 'FAIL'     
+        except KeyError:
+            result.status = 'FAIL'
+            result.exc_info = sys.exc_info()
+            result.exc_info[1].message = 'not exists key \''+result.exc_info[1].message+'\' in this assert\'s item'
+        except AttributeError:
+            result.status = 'FAIL'
+            result.exc_info = sys.exc_info()
+            result.exc_info[1].message = 'not exists Attribute \''+result.exc_info[1].message+'\' in this assert'
         return result
 
+    #对上面进行改进，对soap也适用
+    def getData(self): 
+        if len(self.item) != 2: return
+        for item in self.item:
+            if '${' and '}' in item._text :
+                text = item._text[2:-1]
+                if self._context.has_key(text):
+                    text = self._context[text]
+                elif self._parent._context.has_key(text):
+                    text = self._parent._context[text]
+                else: #处理soap断言
+                    text = self.search(text)
+                if text.__class__ is not unicode:
+                    text = unicode(str(text),'utf-8')
+                item._text = text
+
+
+    def search(self,string):
+        from SOAPpy import Types
+        arg = string.split('.')
+        for l in range(len(arg)):
+            if '[' and ']' in arg[l-1]:
+                index = arg[l-1][arg[l-1].index('[')+1:arg[l-1].index(']')]
+                arg[l-1] = arg[l-1][:arg[l-1].index('[')]
+                arg.insert(1,int(index))
+            else:continue
+        obj = None
+        for i in range(len(arg)):
+            if i == 0:
+                if self._context.has_key(arg[i]):
+                    obj = self._context[arg[i]]
+                elif self._parent._context.has_key(arg[i]):
+                    obj = self._parent._context[arg[i]]
+            else:
+                if type(obj) in [list,tuple] and type(arg[i]) in [int, long]:
+                    obj = obj[arg[i]]
+                elif obj.__class__ is Types.structType:
+                    obj = obj.__dict__[arg[i]] 
+        return obj
+	
 # 注册配置结点类
 register('sample',Sample)
 register('assert',Assert)
