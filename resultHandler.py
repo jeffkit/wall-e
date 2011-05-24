@@ -17,7 +17,7 @@ class xmlHandler(resultHander):
         self.result_xml(result)
 
     def get_testResult_dir(self):
-        rsdir = self.config.testResult_dir
+        rsdir = self.config.test_result_dir
         if not os.path.exists(rsdir):
             rsdir = os.path.sep.join((os.getcwd(),rsdir))
             if not os.path.exists(rsdir):
