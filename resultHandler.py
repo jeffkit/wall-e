@@ -59,7 +59,7 @@ class multResultHandler(resultHander):
 
     def handle(self,result=None):
         for item in self.handles:
-            if item.__class__ is not self.__class__:#防止死循环
+            if item.__class__ is not self.__class__:
                 item.handle(result)
     def addResultHandler(self,rh):
         if resultHander in rh.__class__.__bases__:
