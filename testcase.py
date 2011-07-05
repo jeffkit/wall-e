@@ -19,7 +19,7 @@ def register(name,node_cls):
     register_node[name] = node_cls
 
 def unregister(name):
-    del resigter_node[name]
+    del register_node[name]
 
 def get_registed_node(name):
     return register_node.get(name,None)
@@ -300,14 +300,14 @@ class TestCase(TestNode):
 
     #设置callback中的result
     def setResult(self,child,result,rs):
-	    if child._name in [u'sample','sample']:
-	        rs.nodetype = 'sample'
-	        rs._sample = child
-	        rs.log = islog(child,result.log)
-	        
-	    else:
-	        rs.nodetype = 'assert'
-	        rs._assert = child
+        if child._name in [u'sample','sample']:
+            rs.nodetype = 'sample'
+            rs._sample = child
+            rs.log = islog(child,result.log)
+       
+        else:
+            rs.nodetype = 'assert'
+            rs._assert = child
           
 	    result.sections.append(rs)
 
@@ -400,6 +400,7 @@ class Sample(TestNode):
 
         elif data_type == 'json':
             import simplejson as json
+            #import json
             rs = json.loads(data._text)
             if type(rs) == dict:
                 self.data.kwargs.update(rs)
@@ -413,7 +414,7 @@ class Sample(TestNode):
     run the sampler
     """
     def __call__(self):
-	return self.sample()
+        return self.sample()
 
 """
 一次断言
@@ -432,9 +433,7 @@ class Assert(TestNode):
             assertser = get_asserter(self.type)
             self.getData()
             args = [item._text for item in self.item]
-            print 'pppppppppppppppppppppp'
-            print args
-            print 'pppppppppppppppppppppp'
+            
             assertser(*args)
         except AssertionError:
             result.status = 'FAIL'
@@ -458,19 +457,43 @@ class Assert(TestNode):
         if len(self.item) != 2: return
         for item in self.item:
             if '${' and '}' in item._text :
+                text = self.search(item._text[2:-1])
+                item._text = text
+                print 'text: ',item._text
+        #print 'item: ',self.item
+        '''
                 text = item._text[2:-1]
                 if self._context.has_key(text):
                     text = self._context[text]
                 elif self._parent._context.has_key(text):
                     text = self._parent._context[text]
+                    print 'text: ',text
+                    print 'context: ',self._parent._context
                 else: #处理soap断言
                     text = self.search(text)
                 if text.__class__ is not unicode:
                     text = unicode(str(text),'utf-8')
                 item._text = text
+        '''
 
 
     def search(self,string):
+        args = string.split('.')
+        print 'args: ',args
+        value = None
+        print 'context: ',self._parent._context
+        for item in args:
+            if value:
+                value = value[item]
+            else:
+            
+                if self._context.has_key(item):
+                    value = self._context[item]
+                elif self._parent._context.has_key(item):
+                    value = self._parent._context[item]
+            print 'value: ',value
+        return str(value)
+    '''
         from SOAPpy import Types
         arg = string.split('.')
         for l in range(len(arg)):
@@ -480,6 +503,7 @@ class Assert(TestNode):
                 arg.insert(1,int(index))
             else:continue
         obj = None
+        print 'arg: ',arg
         for i in range(len(arg)):
             if i == 0:
                 if self._context.has_key(arg[i]):
@@ -492,6 +516,7 @@ class Assert(TestNode):
                 elif obj.__class__ is Types.structType:
                     obj = obj.__dict__[arg[i]] 
         return obj
+    '''
 	
 # 注册配置结点类
 register('sample',Sample)
