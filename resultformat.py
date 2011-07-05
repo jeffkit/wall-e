@@ -55,7 +55,7 @@ def xml_assert(result,headnode,xml_doc):
             args = [item._text for item in result._assert.item]
             exp = result._assert.type+'['
             for i in args:
-                exp += i+','
+                exp += str(i)+','
             exp = exp[:-1]+']'
             child.setAttribute('expression',exp)
     headnode.appendChild(child)
@@ -70,8 +70,8 @@ def xml_except(result,headnode,xml_doc):
     rs_except_textmsg = xml_doc.createTextNode('More Information:')
     rs_except.appendChild(rs_except_textmsg)
     for filename, lineno, function, msg in traceback.extract_tb(result.exc_info[2]):
-	    rs_except_text3 = xml_doc.createTextNode('%s line %s in %s function [%s]'%(filename,lineno,function,msg))
-	    rs_except.appendChild(rs_except_text3)
+        rs_except_text3 = xml_doc.createTextNode('%s line %s in %s function [%s]'%(filename,lineno,function,msg))
+        rs_except.appendChild(rs_except_text3)
     headnode.appendChild(rs_except)
 
 class MutiFormat(object):
@@ -261,7 +261,7 @@ class MutiFormat(object):
         return html
         
 
-
+'''
     def toArgsTuple(self,rs):
         params = ()
         if getattr(rs,'nodetype',None):    
@@ -287,3 +287,4 @@ class MutiFormat(object):
             params += (int(test_id),)
 
         return params
+'''

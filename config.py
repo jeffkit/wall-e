@@ -4,6 +4,7 @@
 监控工作配置类，配置保存了监控程序运行时所需要的信息。
 如，测试文件位置、调试模式等
 """
+import os
 class MonitorConfig:
 
     def __init__(self,**kwargs):
@@ -18,7 +19,7 @@ class MonitorConfig:
 
         self.master_check_time = 10 # 主线程检测是否还有工作进程的间隔时间，单位为秒
 
-        self.test_result_dir = self.testdir+'\\qq_result'
+        self.test_result_dir = self.testdir+os.sep+'result'
 
         for k,v in kwargs.items():
             if k[0] != '_': # 预防修改私有变量
