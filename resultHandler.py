@@ -20,11 +20,12 @@ class xmlHandler(resultHander):
         rsdir = self.config.test_result_dir
         if not os.path.exists(rsdir):
             rsdir = os.path.sep.join((os.getcwd(),rsdir))
+            #print 'rsdir: ',rsdir
             if not os.path.exists(rsdir):
-	            try:
-	                os.makedirs(rsdir)
-	            except:
-	                rsdir = os.path.sep.join((os.getcwd(),'result'))
+                try:
+                    os.makedirs(rsdir)
+                except:
+                    rsdir = os.path.sep.join((os.getcwd(),'result'))
                     os.makedirs(rsdir)
         return os.path.abspath(rsdir)
 
