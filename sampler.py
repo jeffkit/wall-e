@@ -4,10 +4,10 @@ import urllib2
 import socket
 import os
 import re
-from SOAPpy import WSDL
+#from SOAPpy import WSDL
 from logger import log,log_exce
 from datetime import datetime
-from SOAPpy import Types
+#from SOAPpy import Types
 
 sampler_map = {}
  
@@ -44,7 +44,7 @@ def convert(v=None,t=None):
     '''
  
 #定义继承BodyType的类型
-class argObj(Types.bodyType):pass
+#class argObj(Types.bodyType):pass
 
 # ============ Sampler定义，这些类均不应直接实例化，是被Mixin到Sample类里面使用的 ============
 
@@ -114,6 +114,7 @@ class HTTPSampler(object):
         if self.method.lower() == 'get':
             if data:
                 url = '?'.join((url,data))
+        self._parent._context[self.id] = {}
         try:
             log.debug('finnally , getting the url %s'%url)
 
@@ -126,11 +127,11 @@ class HTTPSampler(object):
 
             # 采样的结果需要暴露5样东西：url,code，msg，responseText,responseHeaders
             
-            result.url = self._parent._context[self.id+'.url'] = self._context['url'] = response.geturl()
-            result.code = self._parent._context[self.id+'.code'] = self._context['code'] = response.code
-            result.msg = self._parent._context[self.id+'.msg'] = self._context['msg'] = response.msg
-            result.responseText = self._parent._context[self.id+'.responseText'] = self._context['responseText'] = response.read()
-            result.responseHeaders = self._parent._context[self.id+'.responseHeaders'] = self._context['responseHeaders'] = response.info()
+            result.url = self._parent._context[self.id]['url'] = self._context['url'] = response.geturl()
+            result.code = self._parent._context[self.id]['code'] = self._context['code'] = response.code
+            result.msg = self._parent._context[self.id]['msg'] = self._context['msg'] = response.msg
+            result.responseText = self._parent._context[self.id]['responseText'] = self._context['responseText'] = response.read()
+            result.responseHeaders = self._parent._context[self.id]['responseHeaders'] = self._context['responseHeaders'] = response.info()
         except:
             result.end_time = datetime.now()
             result._sample = self
@@ -138,11 +139,19 @@ class HTTPSampler(object):
             result.code = 503
             result.exc_info = log_exce('something wrong')
         result.httpHeader = opener.addheaders
+        self._parent._context[self.id]['status'] = self._context['status'] = result.status 
         return result
 
 register('http',HTTPSampler)
 
 class SOAPSampler(object):
+    #__import__(mod[0],fromlist=[mod[1]])
+    #return getattr(t, mod[1])
+    t = __import__('SOAPpy',fromlist=['Types'])
+    types = getattr(t,'Types')
+    #types.__class__.__bases__ += (object,)
+    argObj = type('argObj',(types.__class__,),{})
+
 
     def is_valid(self):
         pass
@@ -153,7 +162,7 @@ class SOAPSampler(object):
         if item.attributes.has_key('name') and item.attributes.has_key('type') and kw.has_key(item.attributes['name']):
             if item.attributes['type'][0] == self._namespace: 
                 k += item.attributes['name']+'.'
-                obj = argObj()
+                obj = self.argObj()
                 d = kw[item.attributes['name']]
                 if o == None:
                     kw[item.attributes['name']] = obj
@@ -161,7 +170,7 @@ class SOAPSampler(object):
                 else:
                     o._addItem(item.attributes['name'], obj)
                 self.translate_arg(d,item.attributes['type'][1],obj,'',k,l)
-            elif Types.bodyType in o.__class__.__bases__:
+            elif self.types.bodyType in o.__class__.__bases__:
                 o._addItem('ns1:'+item.attributes['name'],convert(kw[item.attributes['name']],item.attributes['type'][1]))
            
         else: 
@@ -226,13 +235,15 @@ class SOAPSampler(object):
     # 采样的逻辑
     def sample(self):
         from testcase import TestResult
+        from SOAPpy import WSDL
         result = TestResult(self._name)
+        self._parent._context[self.id] = {}
         try:
             self.wrapdata()
             server = WSDL.Proxy(self.wsdl)
             self._namespace = namespace = server.wsdl.targetNamespace
             #设置argObj._validURI值
-            argObj._validURIs = (namespace, )
+            self.argObj._validURIs = (namespace, )
             server.methods[self.method].namespace = namespace
             method = getattr(server,self.method)
             print '============soap method==============='
@@ -244,7 +255,7 @@ class SOAPSampler(object):
             result.start_time = datetime.now()
            
             if self.data.kwargs:
-                obj = argObj()
+                obj = self.argObj()
                 
                 kwargs = self.translate_arg(self.data.kwargs,self.method,obj)
                 if kwargs.__class__ is dict:
@@ -264,7 +275,10 @@ class SOAPSampler(object):
             else:
                 soap_result = method()
             result.end_time = datetime.now()
+            print 'soap_result: ',soap_result
+            
             rs=self.getDataField(soap_result)
+            print 'rs: ',rs
             result.soapRespone=self._parent._context[self.id] = self._context[self.id] = rs
             result.code =200
            
@@ -278,16 +292,16 @@ class SOAPSampler(object):
             result._sample = self
             result.status='ERROR'
             result.exc_info = log_exce('something wrong')
-        
+        self._parent._context[self.id]['status'] = self._context['status'] = result.status
         return result
-	   
+   
     def getDataField(self,arg):
-        if arg.__class__ == Types.structType:
+        if arg.__class__ == self.types.structType:
             for item in arg.__dict__.items():
                 if 'element' == item[0]: continue
                 if '_'in item[0] : continue
                 if 'schema' == item[0]: continue
-                if item[1].__class__ is Types.structType:
+                if item[1].__class__ is self.types.structType:
                     arg = self.getDataField(item[1])
                 elif type(item[1]) in (tuple,list):
                     arg = item[1]     
@@ -303,6 +317,7 @@ class PINGSampler(object):
         from testcase import TestResult
         result = TestResult(self._name)
         result.status = None
+        self._parent._context[self.id] = {}
         try:
             listForPipe = []
             command = self.commandForOs()
@@ -326,7 +341,7 @@ class PINGSampler(object):
             result._sample = self
             result.status='ERROR'
             result.exc_info = log_exce('something wrong')
-        
+        self._parent._context[self.id]['status'] = self._context['status'] = result.status
         return result
 
     def getReply(self,item):
@@ -371,6 +386,7 @@ class TELNETSampler(object):
         from testcase import TestResult
         from telnetlib import Telnet
         result = TestResult(self._name)
+        self._parent._context[self.id] ={}
         try:
             self.sethost()
             result.start_time = datetime.now()
@@ -385,6 +401,8 @@ class TELNETSampler(object):
             result._sample = self
             result.status='ERROR'
             result.exc_info = log_exce('something wrong')
+            
+        self._parent._context[self.id]['status'] = self._context['status'] = result.status
         return result
         
 
@@ -398,6 +416,8 @@ class TELNETSampler(object):
                 self.host = self.hostname
             else:raise
             #    self.host = '127.0.0.1'
+            
+            
 register('telnet',TELNETSampler)      
 if __name__ == '__main__':
     import doctest
