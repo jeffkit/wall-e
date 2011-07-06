@@ -29,7 +29,7 @@ def islog(obj,arg=None):
     if getattr(obj,'log',None):
         log = getattr(obj,'log',None)
         if log.upper() in ['y','YES','TRUE','T']:
-	        return True
+            return True
         elif log.upper() in ['N','NO','FALSE','F']:
             return False
     elif arg is not None: 
@@ -304,12 +304,11 @@ class TestCase(TestNode):
             rs.nodetype = 'sample'
             rs._sample = child
             rs.log = islog(child,result.log)
-       
         else:
             rs.nodetype = 'assert'
             rs._assert = child
-          
-	    result.sections.append(rs)
+        print 'rs nodetype: ',rs.nodetype  
+        result.sections.append(rs)
 
     """
     应用全局配置的原则是：
@@ -481,7 +480,7 @@ class Assert(TestNode):
         args = string.split('.')
         print 'args: ',args
         value = None
-        print 'context: ',self._parent._context
+        #print 'context: ',self._parent._context
         for item in args:
             if value:
                 value = value[item]
@@ -491,7 +490,7 @@ class Assert(TestNode):
                     value = self._context[item]
                 elif self._parent._context.has_key(item):
                     value = self._parent._context[item]
-            print 'value: ',value
+            #print 'value: ',value
         return str(value)
     '''
         from SOAPpy import Types
